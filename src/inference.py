@@ -1,7 +1,6 @@
-"""
-On-device inference engine for EdgePredict-CWRU.
+"""On-device inference engine for EdgePredict-CWRU.
 Loads the trained model, simulates a real-time stream of windows,
-and measures inference latency per window.
+and measures per-window inference latency.
 """
 
 import os
@@ -11,7 +10,7 @@ import joblib
 import numpy as np
 
 from ingestion import load_signal, window_signal
-from features import extract_features
+from features import extract_features_vectorized
 
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
@@ -27,20 +26,18 @@ def load_model():
     return model, meta
 
 
-def predict_window(model, meta, window):
+def run_inference(model, windows):
     """
-    Extract features from a single window and predict the class.
-    Returns (label, latency_ms).
+    Vectorized inference on a batch of windows.
+    Returns (predictions, features, total_time_s).
     """
     t0 = time.perf_counter()
 
-    f = extract_features(window)
-    x = np.array([[f["rms"], f["crest_factor"], f["kurtosis"], f["skewness"]]])
-    label = model.predict(x)[0]
+    features = extract_features_vectorized(windows)
+    predictions = model.predict(features)
 
     t1 = time.perf_counter()
-    latency_ms = (t1 - t0) * 1000.0
-    return label, latency_ms
+    return predictions, features, (t1 - t0)
 
 
 def main():
@@ -53,30 +50,27 @@ def main():
     print(f"\nLoading signal from {sample_file}")
     signal = load_signal(sample_file)
     windows = window_signal(signal)
-    print(f"Signal length: {len(signal)}, windows: {windows.shape[0]}")
+    n = windows.shape[0]
+    print(f"Signal length: {len(signal)}, windows: {n}")
 
-    print("\nRunning inference on all windows...")
-    latencies = []
-    predictions = []
+    print("\nRunning vectorized inference...")
+    predictions, features, total_s = run_inference(model, windows)
 
-    for w in windows:
-        label, latency = predict_window(model, meta, w)
-        latencies.append(latency)
-        predictions.append(label)
-
-    latencies = np.array(latencies)
-
+    per_window_ms = (total_s * 1000.0) / n
     print("\nInference summary")
-    print(f"Total windows processed: {len(latencies)}")
-    print(f"Mean latency:   {latencies.mean():.3f} ms")
-    print(f"Min latency:    {latencies.min():.3f} ms")
-    print(f"Max latency:    {latencies.max():.3f} ms")
-    print(f"P95 latency:    {np.percentile(latencies, 95):.3f} ms")
+    print(f"Total windows processed: {n}")
+    print(f"Total time:              {total_s * 1000.0:.3f} ms")
+    print(f"Per-window latency:      {per_window_ms:.3f} ms")
 
     unique, counts = np.unique(predictions, return_counts=True)
     print("\nPredicted class distribution:")
     for u, c in zip(unique, counts):
         print(f"  {u}: {c}")
+
+    if per_window_ms < 10.0:
+        print("\nTarget met: per-window latency below 10 ms.")
+    else:
+        print("\nWARNING: per-window latency above 10 ms.")
 
 
 if __name__ == "__main__":
