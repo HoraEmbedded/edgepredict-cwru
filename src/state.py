@@ -13,17 +13,19 @@ class SharedState:
         self._latest = {
             "label": None,
             "features": None,
+            "confidence": None,
             "latency_ms": None,
             "window_index": None,
             "source_file": None,
         }
         self._history = deque(maxlen=history_size)
 
-    def update(self, label, features, latency_ms, window_index, source_file):
+    def update(self, label, features, confidence, latency_ms, window_index, source_file):
         with self._lock:
             self._latest = {
                 "label": label,
                 "features": features,
+                "confidence": confidence,
                 "latency_ms": latency_ms,
                 "window_index": window_index,
                 "source_file": source_file,

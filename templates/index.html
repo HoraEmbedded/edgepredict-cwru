@@ -13,15 +13,8 @@
             margin: 0;
             padding: 20px;
         }
-        h1 {
-            font-size: 22px;
-            margin-bottom: 4px;
-        }
-        .subtitle {
-            color: #94a3b8;
-            font-size: 13px;
-            margin-bottom: 20px;
-        }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        .subtitle { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
         .cards {
             display: flex;
             flex-wrap: wrap;
@@ -52,6 +45,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
+            margin-bottom: 20px;
         }
         .chart-box {
             background: #1e293b;
@@ -59,6 +53,14 @@
             padding: 12px;
             height: 320px;
         }
+        .meta {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .meta span { color: #e2e8f0; font-weight: bold; }
         @media (max-width: 800px) {
             .charts { grid-template-columns: 1fr; }
         }
@@ -72,6 +74,10 @@
         <div class="card">
             <div class="label">Predicted state</div>
             <div class="value" id="label">-</div>
+        </div>
+        <div class="card">
+            <div class="label">Confidence</div>
+            <div class="value" id="confidence">-</div>
         </div>
         <div class="card">
             <div class="label">Latency</div>
@@ -94,6 +100,12 @@
         <div class="chart-box">
             <canvas id="featureChart"></canvas>
         </div>
+    </div>
+
+    <div class="meta" id="meta">
+        Model: <span id="model-classes">-</span> |
+        Test accuracy: <span id="model-acc">-</span> |
+        Best params: <span id="model-params">-</span>
     </div>
 
     <script>
@@ -142,6 +154,8 @@
             labelEl.textContent = state.label || '-';
             labelEl.className = 'value ' + (state.label === 'Normal' ? 'status-normal' : 'status-fault');
 
+            document.getElementById('confidence').textContent =
+                state.confidence ? (state.confidence * 100).toFixed(1) + ' %' : '-';
             document.getElementById('latency').textContent =
                 state.latency_ms ? state.latency_ms.toFixed(2) + ' ms' : '-';
             document.getElementById('window').textContent =
@@ -171,6 +185,23 @@
             featureChart.update();
         }
 
+        async function updateMeta() {
+            try {
+                const m = await (await fetch('/api/model')).json();
+                if (m.classes) {
+                    document.getElementById('model-classes').textContent = m.classes.join(', ');
+                }
+                if (m.test_accuracy !== undefined) {
+                    document.getElementById('model-acc').textContent = (m.test_accuracy * 100).toFixed(2) + ' %';
+                }
+                if (m.best_params) {
+                    const p = m.best_params;
+                    document.getElementById('model-params').textContent =
+                        `n=${p.n_estimators}, depth=${p.max_depth}`;
+                }
+            } catch (e) { /* ignore */ }
+        }
+
         async function refresh() {
             try {
                 const s = await (await fetch('/api/state')).json();
@@ -184,6 +215,7 @@
         }
 
         setInterval(refresh, 1000);
+        updateMeta();
         refresh();
     </script>
 </body>

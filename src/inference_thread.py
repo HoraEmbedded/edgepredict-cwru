@@ -1,5 +1,6 @@
 """
 Background thread running inference in a loop and updating shared state.
+Uses the tuned Random Forest model.
 """
 
 import os
@@ -14,8 +15,8 @@ from features import extract_features
 
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
-MODEL_FILE = os.path.join(BASE_DIR, "models", "cwru_model.pkl")
-META_FILE = os.path.join(BASE_DIR, "models", "cwru_model_meta.json")
+MODEL_FILE = os.path.join(BASE_DIR, "models", "cwru_model_tuned.pkl")
+META_FILE = os.path.join(BASE_DIR, "models", "cwru_model_tuned_meta.json")
 DATA_DIR = os.path.join(BASE_DIR, "data", "raw")
 
 DEFAULT_FILE = "105.mat"
@@ -37,6 +38,8 @@ def inference_loop(state, stop_event, source_file=DEFAULT_FILE):
     n = windows.shape[0]
 
     print(f"[inference] Loaded {source_file}, windows: {n}")
+    print(f"[inference] Model classes: {meta['classes']}")
+    print(f"[inference] Test accuracy: {meta.get('test_accuracy', 'n/a')}")
 
     idx = 0
     while not stop_event.is_set():
@@ -45,13 +48,16 @@ def inference_loop(state, stop_event, source_file=DEFAULT_FILE):
         t0 = time.perf_counter()
         f = extract_features(window)
         x = np.array([[f["rms"], f["crest_factor"], f["kurtosis"], f["skewness"]]])
-        label = model.predict(x)[0]
+        proba = model.predict_proba(x)[0]
+        label = model.classes_[int(np.argmax(proba))]
+        confidence = float(np.max(proba))
         t1 = time.perf_counter()
         latency_ms = (t1 - t0) * 1000.0
 
         state.update(
             label=str(label),
             features=f,
+            confidence=confidence,
             latency_ms=latency_ms,
             window_index=idx,
             source_file=source_file,
