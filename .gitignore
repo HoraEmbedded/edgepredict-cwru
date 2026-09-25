@@ -6,3 +6,6 @@ venv/
 .env
 data/raw/*.mat
 data/processed/*.csv
+models/*.pkl
+models/*.json
+
