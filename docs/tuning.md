@@ -29,3 +29,14 @@ Test accuracy with tuned model: <to fill>
 Default Random Forest test accuracy: 0.9792
 
 Tuned Random Forest test accuracy: <to fill>
+
+
+## Note on tuning location
+
+The GridSearchCV tuning was performed on the development machine, not on the Raspberry Pi.
+
+Reason: the Pi 4 without active cooling reaches thermal limits under sustained multi-core load (observed 84.7 degrees Celsius and soft temperature limit throttling during a first attempt).
+
+The tuned model was then transferred to the Pi for deployment and inference measurement.
+
+This reflects a standard MLOps workflow: train and tune off-device, deploy the final artifact on the target.

@@ -1,0 +1,14 @@
+[Unit]
+Description=EdgePredict-CWRU predictive maintenance service
+After=network.target
+
+[Service]
+Type=simple
+User=horaembedded
+WorkingDirectory=/home/horaembedded/edgepredict-cwru/src
+ExecStart=/home/horaembedded/edgepredict-cwru/venv/bin/python /home/horaembedded/edgepredict-cwru/src/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
