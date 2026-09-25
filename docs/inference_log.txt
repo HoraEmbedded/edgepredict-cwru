@@ -1,0 +1,18 @@
+Loading model...
+Model classes: ['Ball', 'InnerRace', 'Normal', 'OuterRace']
+Training accuracy: 1.0
+
+Loading signal from /home/horaembedded/edgepredict-cwru/src/../data/raw/105.mat
+Signal length: 121265, windows: 118
+
+Running inference on all windows...
+
+Inference summary
+Total windows processed: 118
+Mean latency:   61.566 ms
+Min latency:    37.909 ms
+Max latency:    86.028 ms
+P95 latency:    75.856 ms
+
+Predicted class distribution:
+  InnerRace: 118
