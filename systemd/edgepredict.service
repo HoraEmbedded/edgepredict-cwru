@@ -1,0 +1,14 @@
+[Unit]
+Description=EdgePredict-CWRU predictive maintenance service
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/edgepredict-cwru/src
+ExecStart=/home/pi/edgepredict-cwru/venv/bin/python /home/pi/edgepredict-cwru/src/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
