@@ -1,0 +1,16 @@
+{
+  "test_accuracy": 0.9779136624988591,
+  "feature_importances": {
+    "rms": 0.6511607672519272,
+    "crest_factor": 0.06940889468766534,
+    "kurtosis": 0.1843020136560807,
+    "skewness": 0.09512832440432685
+  },
+  "n_test_samples": 10957,
+  "classes": [
+    "Ball",
+    "InnerRace",
+    "Normal",
+    "OuterRace"
+  ]
+}
