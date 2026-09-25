@@ -1,0 +1,7 @@
+model,cv_accuracy_mean,cv_accuracy_std,cv_time_s,train_time_s,test_accuracy,inference_ms_per_sample,model_size_kb
+RandomForest,0.9807,0.0014,27.91,7.13,0.9792,0.0133,15456.4
+GradientBoosting,0.9783,0.0016,153.89,70.57,0.976,0.0113,513.4
+MLP,0.978,0.0014,357.54,142.62,0.9759,0.0033,91.2
+DecisionTree,0.9721,0.0012,6.92,0.58,0.9699,0.0003,171.6
+KNN,0.9608,0.0012,1.48,0.19,0.9617,0.0111,3617.4
+SVM_RBF,0.9512,0.0034,118.16,39.45,0.9586,1.081,829.0
