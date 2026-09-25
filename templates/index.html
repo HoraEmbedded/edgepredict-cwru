@@ -1,22 +1,188 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>EdgePredict-CWRU</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>EdgePredict-CWRU Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 14px 18px;
+            min-width: 160px;
+            flex: 1;
+        }
+        .card .label {
+            font-size: 12px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .card .value {
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        .status-normal { color: #22c55e; }
+        .status-fault { color: #ef4444; }
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .chart-box {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            height: 320px;
+        }
+        @media (max-width: 800px) {
+            .charts { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body>
     <h1>EdgePredict-CWRU</h1>
-    <p>State: <span id="label">loading...</span></p>
-    <p>Latency: <span id="latency">-</span> ms</p>
-    <p>Window index: <span id="window">-</span></p>
+    <div class="subtitle">Embedded predictive maintenance - Raspberry Pi 4</div>
+
+    <div class="cards">
+        <div class="card">
+            <div class="label">Predicted state</div>
+            <div class="value" id="label">-</div>
+        </div>
+        <div class="card">
+            <div class="label">Latency</div>
+            <div class="value" id="latency">-</div>
+        </div>
+        <div class="card">
+            <div class="label">Window index</div>
+            <div class="value" id="window">-</div>
+        </div>
+        <div class="card">
+            <div class="label">Source file</div>
+            <div class="value" id="source">-</div>
+        </div>
+    </div>
+
+    <div class="charts">
+        <div class="chart-box">
+            <canvas id="classChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <canvas id="featureChart"></canvas>
+        </div>
+    </div>
+
     <script>
-        async function refresh() {
-            const r = await fetch('/api/state');
-            const d = await r.json();
-            document.getElementById('label').textContent = d.label || 'no data';
-            document.getElementById('latency').textContent = d.latency_ms ? d.latency_ms.toFixed(2) : '-';
-            document.getElementById('window').textContent = d.window_index ?? '-';
+        const classChart = new Chart(document.getElementById('classChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Normal', 'InnerRace', 'OuterRace', 'Ball'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6']
+                }]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Class distribution (last 100 windows)', color: '#e2e8f0' },
+                    legend: { labels: { color: '#e2e8f0' } }
+                }
+            }
+        });
+
+        const featureChart = new Chart(document.getElementById('featureChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'RMS', data: [], borderColor: '#3b82f6', tension: 0.3 },
+                    { label: 'Crest Factor', data: [], borderColor: '#f59e0b', tension: 0.3 },
+                    { label: 'Kurtosis', data: [], borderColor: '#ef4444', tension: 0.3 },
+                    { label: 'Skewness', data: [], borderColor: '#22c55e', tension: 0.3 }
+                ]
+            },
+            options: {
+                plugins: {
+                    title: { display: true, text: 'Features over time', color: '#e2e8f0' },
+                    legend: { labels: { color: '#e2e8f0' } }
+                },
+                scales: {
+                    x: { ticks: { color: '#94a3b8' } },
+                    y: { ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+
+        function updateCards(state) {
+            const labelEl = document.getElementById('label');
+            labelEl.textContent = state.label || '-';
+            labelEl.className = 'value ' + (state.label === 'Normal' ? 'status-normal' : 'status-fault');
+
+            document.getElementById('latency').textContent =
+                state.latency_ms ? state.latency_ms.toFixed(2) + ' ms' : '-';
+            document.getElementById('window').textContent =
+                state.window_index ?? '-';
+            document.getElementById('source').textContent =
+                state.source_file || '-';
         }
+
+        function updateClassChart(history) {
+            const counts = { Normal: 0, InnerRace: 0, OuterRace: 0, Ball: 0 };
+            history.forEach(h => {
+                if (counts[h.label] !== undefined) counts[h.label]++;
+            });
+            classChart.data.datasets[0].data = [
+                counts.Normal, counts.InnerRace, counts.OuterRace, counts.Ball
+            ];
+            classChart.update();
+        }
+
+        function updateFeatureChart(history) {
+            const last = history.slice(-50);
+            featureChart.data.labels = last.map((_, i) => i);
+            featureChart.data.datasets[0].data = last.map(h => h.features?.rms ?? 0);
+            featureChart.data.datasets[1].data = last.map(h => h.features?.crest_factor ?? 0);
+            featureChart.data.datasets[2].data = last.map(h => h.features?.kurtosis ?? 0);
+            featureChart.data.datasets[3].data = last.map(h => h.features?.skewness ?? 0);
+            featureChart.update();
+        }
+
+        async function refresh() {
+            try {
+                const s = await (await fetch('/api/state')).json();
+                updateCards(s);
+                const h = await (await fetch('/api/history')).json();
+                updateClassChart(h);
+                updateFeatureChart(h);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
         setInterval(refresh, 1000);
         refresh();
     </script>
