@@ -5,14 +5,14 @@ Training accuracy: 1.0
 Loading signal from /home/horaembedded/edgepredict-cwru/src/../data/raw/105.mat
 Signal length: 121265, windows: 118
 
-Running inference on all windows...
+Running vectorized inference...
 
 Inference summary
 Total windows processed: 118
-Mean latency:   61.566 ms
-Min latency:    37.909 ms
-Max latency:    86.028 ms
-P95 latency:    75.856 ms
+Total time:              77.896 ms
+Per-window latency:      0.660 ms
 
 Predicted class distribution:
   InnerRace: 118
+
+Target met: per-window latency below 10 ms.
