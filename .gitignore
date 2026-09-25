@@ -10,3 +10,5 @@ models/*.pkl
 models/*.json
 report/figures/*.png
 models/comparison/
+models/*_tuned.pkl
+models/*_tuned_meta.json
