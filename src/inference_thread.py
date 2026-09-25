@@ -1,6 +1,6 @@
 """
 Background thread running inference in a loop and updating shared state.
-Uses the tuned Random Forest model.
+Reloads the source file when requested through the shared state.
 """
 
 import os
@@ -19,7 +19,6 @@ MODEL_FILE = os.path.join(BASE_DIR, "models", "cwru_model_tuned.pkl")
 META_FILE = os.path.join(BASE_DIR, "models", "cwru_model_tuned_meta.json")
 DATA_DIR = os.path.join(BASE_DIR, "data", "raw")
 
-DEFAULT_FILE = "105.mat"
 LOOP_DELAY_S = 0.5
 
 
@@ -30,19 +29,31 @@ def load_model():
     return model, meta
 
 
-def inference_loop(state, stop_event, source_file=DEFAULT_FILE):
+def inference_loop(state, stop_event):
     model, meta = load_model()
-    path = os.path.join(DATA_DIR, source_file)
-    signal = load_signal(path)
-    windows = window_signal(signal)
-    n = windows.shape[0]
-
-    print(f"[inference] Loaded {source_file}, windows: {n}")
     print(f"[inference] Model classes: {meta['classes']}")
     print(f"[inference] Test accuracy: {meta.get('test_accuracy', 'n/a')}")
 
+    current_file = state.get_source_file()
+    signal = load_signal(os.path.join(DATA_DIR, current_file))
+    windows = window_signal(signal)
+    n = windows.shape[0]
+    print(f"[inference] Loaded {current_file}, windows: {n}")
+
     idx = 0
     while not stop_event.is_set():
+        if state.consume_reload_request():
+            current_file = state.get_source_file()
+            try:
+                signal = load_signal(os.path.join(DATA_DIR, current_file))
+                windows = window_signal(signal)
+                n = windows.shape[0]
+                idx = 0
+                print(f"[inference] Switched to {current_file}, windows: {n}")
+            except Exception as e:
+                print(f"[inference] Failed to load {current_file}: {e}")
+                continue
+
         window = windows[idx]
 
         t0 = time.perf_counter()
@@ -60,18 +71,18 @@ def inference_loop(state, stop_event, source_file=DEFAULT_FILE):
             confidence=confidence,
             latency_ms=latency_ms,
             window_index=idx,
-            source_file=source_file,
+            source_file=current_file,
         )
 
         idx = (idx + 1) % n
         time.sleep(LOOP_DELAY_S)
 
 
-def start_inference_thread(state, source_file=DEFAULT_FILE):
+def start_inference_thread(state):
     stop_event = threading.Event()
     thread = threading.Thread(
         target=inference_loop,
-        args=(state, stop_event, source_file),
+        args=(state, stop_event),
         daemon=True,
     )
     thread.start()

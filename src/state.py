@@ -1,6 +1,6 @@
 """
 Thread-safe shared state for the EdgePredict system.
-Stores the latest prediction and a rolling history.
+Stores the latest prediction, a rolling history, and the current source file.
 """
 
 import threading
@@ -19,6 +19,8 @@ class SharedState:
             "source_file": None,
         }
         self._history = deque(maxlen=history_size)
+        self._source_file = "105.mat"
+        self._reload_requested = False
 
     def update(self, label, features, confidence, latency_ms, window_index, source_file):
         with self._lock:
@@ -39,3 +41,18 @@ class SharedState:
     def get_history(self):
         with self._lock:
             return list(self._history)
+
+    def get_source_file(self):
+        with self._lock:
+            return self._source_file
+
+    def set_source_file(self, filename):
+        with self._lock:
+            self._source_file = filename
+            self._reload_requested = True
+
+    def consume_reload_request(self):
+        with self._lock:
+            requested = self._reload_requested
+            self._reload_requested = False
+            return requested

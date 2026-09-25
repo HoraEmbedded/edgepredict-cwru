@@ -41,6 +41,40 @@
         }
         .status-normal { color: #22c55e; }
         .status-fault { color: #ef4444; }
+        .controls {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .controls label {
+            font-size: 13px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .controls select {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+        .controls button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .controls button:hover { background: #2563eb; }
         .charts {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -69,6 +103,13 @@
 <body>
     <h1>EdgePredict-CWRU</h1>
     <div class="subtitle">Embedded predictive maintenance - Raspberry Pi 4</div>
+
+    <div class="controls">
+        <label for="file-select">Scenario</label>
+        <select id="file-select"></select>
+        <button id="apply-btn">Apply</button>
+        <span id="apply-status" style="font-size: 13px; color: #94a3b8;"></span>
+    </div>
 
     <div class="cards">
         <div class="card">
@@ -185,6 +226,44 @@
             featureChart.update();
         }
 
+        async function loadFiles() {
+            try {
+                const data = await (await fetch('/api/files')).json();
+                const select = document.getElementById('file-select');
+                select.innerHTML = '';
+                data.files.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f;
+                    opt.textContent = f;
+                    if (f === data.current) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function applyFile() {
+            const select = document.getElementById('file-select');
+            const status = document.getElementById('apply-status');
+            const file = select.value;
+            status.textContent = 'Applying...';
+            try {
+                const r = await fetch('/api/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file })
+                });
+                const data = await r.json();
+                if (data.ok) {
+                    status.textContent = 'Switched to ' + file;
+                    setTimeout(() => status.textContent = '', 3000);
+                } else {
+                    status.textContent = 'Error: ' + (data.error || 'unknown');
+                }
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+            }
+        }
+
         async function updateMeta() {
             try {
                 const m = await (await fetch('/api/model')).json();
@@ -214,7 +293,10 @@
             }
         }
 
+        document.getElementById('apply-btn').addEventListener('click', applyFile);
+
         setInterval(refresh, 1000);
+        loadFiles();
         updateMeta();
         refresh();
     </script>
