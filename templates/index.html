@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>EdgePredict-CWRU</title>
+</head>
+<body>
+    <h1>EdgePredict-CWRU</h1>
+    <p>State: <span id="label">loading...</span></p>
+    <p>Latency: <span id="latency">-</span> ms</p>
+    <p>Window index: <span id="window">-</span></p>
+    <script>
+        async function refresh() {
+            const r = await fetch('/api/state');
+            const d = await r.json();
+            document.getElementById('label').textContent = d.label || 'no data';
+            document.getElementById('latency').textContent = d.latency_ms ? d.latency_ms.toFixed(2) : '-';
+            document.getElementById('window').textContent = d.window_index ?? '-';
+        }
+        setInterval(refresh, 1000);
+        refresh();
+    </script>
+</body>
+</html>
