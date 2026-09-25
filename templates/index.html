@@ -1,20 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>EdgePredict-CWRU Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #334155;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --ok: #22c55e;
+            --fault: #ef4444;
+            --warn: #f59e0b;
+            --info: #3b82f6;
+        }
+
+        [data-theme="light"] {
+            --bg: #f8fafc;
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #cbd5e1;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --ok: #16a34a;
+            --fault: #dc2626;
+            --warn: #d97706;
+            --info: #2563eb;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
+            background: var(--bg);
+            color: var(--text);
             margin: 0;
             padding: 20px;
+            transition: background 0.2s, color 0.2s;
         }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
         h1 { font-size: 22px; margin-bottom: 4px; }
-        .subtitle { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+        .subtitle { color: var(--muted); font-size: 13px; }
+
+        .theme-toggle {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .theme-toggle:hover {
+            border-color: var(--accent);
+        }
+
         .cards {
             display: flex;
             flex-wrap: wrap;
@@ -22,15 +73,16 @@
             margin-bottom: 20px;
         }
         .card {
-            background: #1e293b;
+            background: var(--panel);
             border-radius: 8px;
             padding: 14px 18px;
             min-width: 160px;
             flex: 1;
+            border: 1px solid var(--border);
         }
         .card .label {
             font-size: 12px;
-            color: #94a3b8;
+            color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -39,10 +91,11 @@
             font-weight: bold;
             margin-top: 6px;
         }
-        .status-normal { color: #22c55e; }
-        .status-fault { color: #ef4444; }
+        .status-normal { color: var(--ok); }
+        .status-fault { color: var(--fault); }
+
         .controls {
-            background: #1e293b;
+            background: var(--panel);
             border-radius: 8px;
             padding: 14px 18px;
             margin-bottom: 20px;
@@ -50,23 +103,24 @@
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
+            border: 1px solid var(--border);
         }
         .controls label {
             font-size: 13px;
-            color: #94a3b8;
+            color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         .controls select {
-            background: #0f172a;
-            color: #e2e8f0;
-            border: 1px solid #334155;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
             border-radius: 6px;
             padding: 8px 12px;
             font-size: 14px;
         }
         .controls button {
-            background: #3b82f6;
+            background: var(--accent);
             color: white;
             border: none;
             border-radius: 6px;
@@ -74,7 +128,12 @@
             font-size: 14px;
             cursor: pointer;
         }
-        .controls button:hover { background: #2563eb; }
+        .controls button:hover { background: var(--accent-hover); }
+        .controls .status {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
         .charts {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -82,33 +141,42 @@
             margin-bottom: 20px;
         }
         .chart-box {
-            background: #1e293b;
+            background: var(--panel);
             border-radius: 8px;
             padding: 12px;
             height: 320px;
+            border: 1px solid var(--border);
         }
+
         .meta {
-            background: #1e293b;
+            background: var(--panel);
             border-radius: 8px;
             padding: 14px 18px;
             font-size: 13px;
-            color: #94a3b8;
+            color: var(--muted);
+            border: 1px solid var(--border);
         }
-        .meta span { color: #e2e8f0; font-weight: bold; }
+        .meta span { color: var(--text); font-weight: bold; }
+
         @media (max-width: 800px) {
             .charts { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <h1>EdgePredict-CWRU</h1>
-    <div class="subtitle">Embedded predictive maintenance - Raspberry Pi 4</div>
+    <div class="topbar">
+        <div>
+            <h1>EdgePredict-CWRU</h1>
+            <div class="subtitle">Embedded predictive maintenance - Raspberry Pi 4</div>
+        </div>
+        <button class="theme-toggle" id="theme-toggle">Light mode</button>
+    </div>
 
     <div class="controls">
         <label for="file-select">Scenario</label>
         <select id="file-select"></select>
         <button id="apply-btn">Apply</button>
-        <span id="apply-status" style="font-size: 13px; color: #94a3b8;"></span>
+        <span class="status" id="apply-status"></span>
     </div>
 
     <div class="cards">
@@ -150,6 +218,37 @@
     </div>
 
     <script>
+        function getCssVar(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('edgepredict-theme', theme);
+            const btn = document.getElementById('theme-toggle');
+            btn.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+            updateChartsTheme();
+        }
+
+        function updateChartsTheme() {
+            const text = getCssVar('--text');
+            const muted = getCssVar('--muted');
+            const border = getCssVar('--border');
+
+            [classChart, featureChart].forEach(c => {
+                if (!c) return;
+                c.options.plugins.title.color = text;
+                c.options.plugins.legend.labels.color = text;
+                if (c.options.scales) {
+                    Object.values(c.options.scales).forEach(s => {
+                        if (s.ticks) s.ticks.color = muted;
+                        if (s.grid) s.grid.color = border;
+                    });
+                }
+                c.update();
+            });
+        }
+
         const classChart = new Chart(document.getElementById('classChart'), {
             type: 'doughnut',
             data: {
@@ -161,8 +260,8 @@
             },
             options: {
                 plugins: {
-                    title: { display: true, text: 'Class distribution (last 100 windows)', color: '#e2e8f0' },
-                    legend: { labels: { color: '#e2e8f0' } }
+                    title: { display: true, text: 'Class distribution (last 100 windows)' },
+                    legend: { labels: {} }
                 }
             }
         });
@@ -180,12 +279,12 @@
             },
             options: {
                 plugins: {
-                    title: { display: true, text: 'Features over time', color: '#e2e8f0' },
-                    legend: { labels: { color: '#e2e8f0' } }
+                    title: { display: true, text: 'Features over time' },
+                    legend: { labels: {} }
                 },
                 scales: {
-                    x: { ticks: { color: '#94a3b8' } },
-                    y: { ticks: { color: '#94a3b8' } }
+                    x: { ticks: {}, grid: {} },
+                    y: { ticks: {}, grid: {} }
                 }
             }
         });
@@ -294,6 +393,13 @@
         }
 
         document.getElementById('apply-btn').addEventListener('click', applyFile);
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+        });
+
+        const savedTheme = localStorage.getItem('edgepredict-theme') || 'dark';
+        applyTheme(savedTheme);
 
         setInterval(refresh, 1000);
         loadFiles();
