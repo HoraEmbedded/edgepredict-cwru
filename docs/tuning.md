@@ -15,27 +15,36 @@
 - min_samples_leaf: [1, 2]
 
 Total combinations: 36
+Total training runs: 108
 
 ## Results
 
-Best parameters: <to fill>
+Best parameters:
 
-Best CV accuracy: <to fill>
+- n_estimators: 50
+- max_depth: 20
+- min_samples_split: 2
+- min_samples_leaf: 1
 
-Test accuracy with tuned model: <to fill>
+Best CV accuracy: 0.9803
+CV standard deviation: 0.0002
 
-## Comparison with default model
+Default Random Forest CV accuracy (Part B): 0.9807
+Default Random Forest test accuracy (Part B): 0.9792
 
-Default Random Forest test accuracy: 0.9792
+## Interpretation
 
-Tuned Random Forest test accuracy: <to fill>
+The GridSearch did not improve the cross-validation accuracy over the default Random Forest parameters.
 
+The gap between the tuned model and the default model is 0.0004, which is within the cross-validation noise.
+
+This result confirms that the Scikit-Learn default hyperparameters for Random Forest were already near-optimal for this dataset.
 
 ## Note on tuning location
 
 The GridSearchCV tuning was performed on the development machine, not on the Raspberry Pi.
 
-Reason: the Pi 4 without active cooling reaches thermal limits under sustained multi-core load (observed 84.7 degrees Celsius and soft temperature limit throttling during a first attempt).
+Reason: the Pi 4 without active cooling reaches thermal limits under sustained multi-core load. A first attempt triggered soft temperature limit throttling at 84.7 degrees Celsius (throttled=0xe0008).
 
 The tuned model was then transferred to the Pi for deployment and inference measurement.
 
