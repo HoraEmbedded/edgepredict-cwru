@@ -25,16 +25,21 @@ def load_signal(filepath: str) -> np.ndarray:
     signal = mat[key].flatten()
     return signal
 
+def window_signal(signal: np.ndarray, window_size: int = WINDOW_SIZE, step: int = 128) -> np.ndarray:
+    """
+    Split a continuous signal into overlapping windows.
+    """
+    if step <= 0:
+        raise ValueError("step must be positive")
+    if step > window_size:
+        raise ValueError("step must be smaller than window_size")
 
-def window_signal(signal: np.ndarray, window_size: int = WINDOW_SIZE) -> np.ndarray:
-    """
-    Split a continuous signal into non-overlapping windows.
-    """
-    num_windows = len(signal) // window_size
-    trimmed = signal[: num_windows * window_size]
-    windows = trimmed.reshape(num_windows, window_size)
+    num_windows = (len(signal) - window_size) // step + 1
+    windows = np.zeros((num_windows, window_size), dtype=signal.dtype)
+    for i in range(num_windows):
+        start = i * step
+        windows[i] = signal[start:start + window_size]
     return windows
-
 
 def main():
     print("CWRU ingestion module")
