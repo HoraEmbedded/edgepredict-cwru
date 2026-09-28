@@ -1,0 +1,336 @@
+% =====================================================================
+%  EdgePredict-CWRU. Embedded Predictive Maintenance on a Raspberry Pi 4.
+%  Personal project report, English, four chapters.
+%  Compilation: pdfLaTeX + Biber + pdfLaTeX.
+%  Font, colour and layout scheme matched to the Scania APS report.
+% =====================================================================
+\documentclass[11pt,a4paper,oneside]{report}
+
+% ------------------------- Language and encoding ---------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{csquotes}
+
+% ------------------------------ Fonts --------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{libertine}                 % Linux Libertine (serif) + Biolinum (sans)
+\usepackage[libertine]{newtxmath}      % mathematics matched to the serif
+\usepackage[scaled=0.95]{inconsolata}  % monospace for code
+\usepackage{microtype}
+
+% ------------------------------ Layout -------------------------------
+\usepackage[a4paper,left=3.2cm,right=2.6cm,top=2.8cm,bottom=3.0cm,%
+headheight=14pt,headsep=18pt]{geometry}
+\usepackage{setspace}
+\setstretch{1.15}
+\usepackage{emptypage}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\sffamily\nouppercase{\leftmark}}
+\fancyhead[R]{\footnotesize\sffamily\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}%
+	\fancyfoot[C]{\footnotesize\sffamily\thepage}}
+
+% ------------------------------ Titles -------------------------------
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+{\sffamily\bfseries}
+{\normalsize\sffamily\mdseries\MakeUppercase{\chaptertitlename}\ \thechapter}
+{0.8ex}
+{\LARGE\raggedright}
+\titlespacing*{\chapter}{0pt}{0pt}{2.2\baselineskip}
+\titleformat{\section}{\sffamily\large\bfseries}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\sffamily\normalsize\bfseries}{\thesubsection}{0.7em}{}
+\titleformat{\subsubsection}{\sffamily\normalsize\itshape}{\thesubsubsection}{0.7em}{}
+\titlespacing*{\section}{0pt}{2.4ex plus 1ex minus .2ex}{1.2ex plus .2ex}
+\titlespacing*{\subsection}{0pt}{2.0ex plus 1ex minus .2ex}{1.0ex plus .2ex}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{2}
+
+% ------------------------ Tables and figures -------------------------
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage[font=small,labelfont={sf,bf},labelsep=period,%
+justification=raggedright,singlelinecheck=false]{caption}
+\usepackage{enumitem}
+\setlist{noitemsep,topsep=0.4em,leftmargin=1.4em}
+\usepackage{xcolor}
+\definecolor{filet}{gray}{0.45}
+\definecolor{fondcode}{gray}{0.97}
+\definecolor{lien}{RGB}{25,60,105}
+
+% --- Palette used across every figure and diagram --------------------
+% Three colours held constant on all figures, the rest in grey.
+%   arbres    : tree-based models
+%   lineaires : linear models and perceptron
+%   accent    : whatever is retained or emphasised
+% The same values are reused inside generer_figures.py.
+\definecolor{arbres}{HTML}{16606B}
+\definecolor{lineaires}{HTML}{4A5B8C}
+\definecolor{accent}{HTML}{C4562A}
+\definecolor{encre}{HTML}{22262A}
+\definecolor{filetfig}{HTML}{98A0A8}
+\definecolor{fondfig}{HTML}{EEF1F3}
+
+% Numbering per chapter (default behaviour of the report class,
+% recalled here so the intent is explicit).
+\numberwithin{figure}{chapter}
+\numberwithin{table}{chapter}
+\numberwithin{equation}{chapter}
+\renewcommand{\arraystretch}{1.15}
+
+% ------------------------------ Units --------------------------------
+\usepackage{siunitx}
+\sisetup{
+	output-decimal-marker = {.},
+	input-decimal-markers = {.,},
+	group-separator       = {\,},
+	group-minimum-digits  = 4,
+	per-mode              = symbol,
+	detect-all
+}
+
+% ------------------------------- Code --------------------------------
+\usepackage{listings}
+\lstdefinestyle{python}{
+	language        = Python,
+	basicstyle      = \ttfamily\small,
+	keywordstyle    = \bfseries,
+	commentstyle    = \itshape\color{gray!75!black},
+	stringstyle     = \color{gray!45!black},
+	numbers         = left,
+	numberstyle     = \tiny\color{gray},
+	numbersep       = 8pt,
+	showstringspaces= false,
+	breaklines      = true,
+	breakatwhitespace = true,
+	columns         = fullflexible,
+	keepspaces      = true,
+	tabsize         = 4,
+	frame           = single,
+	framesep        = 5pt,
+	rulecolor       = \color{gray!50},
+	backgroundcolor = \color{fondcode},
+	captionpos      = b,
+	extendedchars   = true,
+	literate = {é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1
+	{â}{{\^a}}1 {ç}{{\c c}}1 {î}{{\^i}}1 {ï}{{\"i}}1
+	{ô}{{\^o}}1 {ù}{{\`u}}1 {û}{{\^u}}1 {É}{{\'E}}1
+	{À}{{\`A}}1 {È}{{\`E}}1 {Ê}{{\^E}}1 {Ô}{{\^O}}1
+	{œ}{{\oe}}1 {Œ}{{\OE}}1
+}
+\lstset{style=python}
+\renewcommand{\lstlistingname}{Listing}
+\renewcommand{\lstlistlistingname}{List of listings}
+
+% ----------------------- Method boxes --------------------------------
+% One method box per chapter, without background or rule: the title in
+% bold sans on its own line, followed by the text.
+\usepackage[most]{tcolorbox}
+\newtcolorbox{methode}[1]{
+	breakable, enhanced, sharp corners,
+	colback   = white,
+	colframe  = white,
+	boxrule   = 0pt,
+	leftrule  = 0pt,
+	titlerule = 0pt,
+	colbacktitle = white,
+	coltitle  = black,
+	fonttitle = \sffamily\bfseries\small,
+	fontupper = \small,
+	left = 0pt, right = 0pt, top = 0pt, bottom = 0pt,
+	title = {#1}
+}
+
+% ------------------------- Bibliography ------------------------------
+\usepackage[backend=biber,style=numeric-comp,sorting=nyt,%
+language=english,maxbibnames=6,giveninits=true,%
+date=year,isbn=false,doi=true,url=false]{biblatex}
+\addbibresource{references.bib}
+
+% ------------------------ Report metadata ----------------------------
+\newcommand{\auteurNom}{Houénoumè Horacia Gloriéta AZONHOUMON}
+\newcommand{\titreRapport}{EdgePredict-CWRU}
+\newcommand{\sousTitreRapport}{Embedded Predictive Maintenance on a Raspberry Pi 4}
+\newcommand{\dateRapport}{September 2026}
+
+% --------------------- Cross-references ------------------------------
+\usepackage[unicode]{hyperref}
+\hypersetup{
+	colorlinks = true,
+	linkcolor  = lien,
+	citecolor  = lien,
+	urlcolor   = lien,
+	linktoc    = all,
+	pdfborder  = {0 0 0},
+	pdftitle   = {\titreRapport},
+	pdfauthor  = {\auteurNom},
+	pdfsubject = {Embedded predictive maintenance, Edge AI, TinyML, bearing fault diagnosis},
+	pdfkeywords= {predictive maintenance, edge AI, TinyML, bearing fault, CWRU, Raspberry Pi}
+}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+% ------------------------- Cover page --------------------------------
+\usepackage{tikz}
+\usetikzlibrary{calc,positioning,arrows.meta,fit,shapes.geometric,backgrounds}
+
+% Displays a logo, or a placeholder frame if the file is not there yet.
+\newcommand{\logoOuReserve}[2]{%
+	\IfFileExists{#1.png}{\includegraphics[height=#2]{#1}}{%
+		\IfFileExists{#1.jpg}{\includegraphics[height=#2]{#1}}{%
+			\IfFileExists{#1.pdf}{\includegraphics[height=#2]{#1}}{%
+				\fbox{\parbox[c][#2][c]{2.6cm}{\centering\tiny\sffamily\color{gray}logo\\to be added}}}}}%
+}
+% Inserts a figure, or a placeholder frame while the file does not exist,
+% so that the document compiles at any moment.
+\newcommand{\figureOuReserve}[3]{%
+	\IfFileExists{figures/#1.png}{\includegraphics[width=#2]{#1}}{%
+		\IfFileExists{figures/#1.pdf}{\includegraphics[width=#2]{#1}}{%
+			\IfFileExists{figures/#1.jpg}{\includegraphics[width=#2]{#1}}{%
+				\fcolorbox{gray!55}{gray!8}{\parbox[c][#3][c]{\dimexpr#2-2\fboxsep-2\fboxrule\relax}{%
+						\centering\sffamily\small\color{gray!30!black}%
+						figure to produce: \texttt{figures/#1}\\[0.35em]
+						\footnotesize\itshape see \texttt{PLAN\_FIGURES.md}}}}}}%
+}
+
+\begin{document}
+	
+	% =====================================================================
+	%  Title page
+	% =====================================================================
+	\begin{titlepage}
+		\sffamily
+		\thispagestyle{empty}
+		
+		\begin{tikzpicture}[remember picture, overlay]
+			\draw[line width=1pt, rounded corners=14pt]
+			($(current page.north west)+(1.5cm,-1.4cm)$)
+			rectangle
+			($(current page.south east)+(-1.5cm,1.4cm)$);
+		\end{tikzpicture}
+		
+		\vspace*{0.8cm}
+		
+		\begin{center}
+			{\large\bfseries Personal Project Report\par}
+			
+			\vspace{2.4cm}
+			
+			{\Huge\bfseries \titreRapport\par}
+			\vspace{0.9em}
+			{\Large \sousTitreRapport\par}
+			
+			\vspace{2.8cm}
+			
+			{\large\bfseries \auteurNom\par}
+			
+			\vspace{1.2cm}
+			
+			{\large \dateRapport\par}
+			
+			\vfill
+			
+			{\small\itshape This report describes a personal project conducted independently.\par}
+		\end{center}
+	\end{titlepage}
+	
+	% =====================================================================
+	%  Front matter
+	% =====================================================================
+	\pagenumbering{roman}
+	\setcounter{page}{2}
+	
+	% --------------------- Résumé et abstract ----------------------------
+	\chapter*{Résumé}
+	\markboth{Résumé}{Résumé}
+	\addcontentsline{toc}{chapter}{Résumé}
+	
+	\noindent
+	Ce rapport présente EdgePredict-CWRU, un système de maintenance prédictive embarquée qui s'exécute intégralement sur une Raspberry Pi 4, sans aucune dépendance au Cloud. Le système classifie en temps réel les défaillances de roulements à partir du dataset CWRU. Il combine un fenêtrage recouvrant, l'extraction d'indicateurs statistiques, un classifieur Random Forest optimisé et un tableau de bord Flask servi sur le réseau local. Six algorithmes d'apprentissage supervisé ont été comparés sous un protocole d'évaluation gelé. Le modèle final atteint une précision de 97,79\,\% sur 10\,957 fenêtres de test, avec une latence d'inférence par lot de 0,0133\,ms par échantillon.
+	
+	\vspace{0.9em}
+	\noindent\textbf{Mots-clés} : maintenance prédictive, Edge AI, TinyML, diagnostic de roulements, dataset CWRU, Random Forest, Raspberry Pi.
+	
+	\vspace{2.5em}
+	
+	{\sffamily\bfseries\LARGE Abstract\par}
+	\vspace{0.9em}
+	\markboth{Abstract}{Abstract}
+	\addcontentsline{toc}{chapter}{Abstract}
+	
+	\noindent
+	This report presents EdgePredict-CWRU, an embedded predictive maintenance system that runs entirely on a Raspberry Pi 4 without any Cloud dependency. The system classifies rolling element bearing faults in real time using the CWRU Bearing Dataset. It combines overlapping windowing, statistical feature extraction, a tuned Random Forest classifier, and a Flask dashboard served on the local network. Six supervised learning algorithms were compared under a frozen evaluation protocol, and the final model reaches a test accuracy of \SI{97.79}{\percent} on \num{10957} windows, with a batch inference latency of \SI{0.0133}{\milli\second} per sample. The report details the signal processing pipeline, the Machine Learning methodology, the embedded deployment, and the runtime measurements collected on the target device.
+	
+	\vspace{0.9em}
+	\noindent\textbf{Keywords}: predictive maintenance, Edge AI, TinyML, bearing fault diagnosis, CWRU dataset, Random Forest, Raspberry Pi.
+
+	% ------------------------- Tables and lists --------------------------
+	\cleardoublepage
+	\tableofcontents
+	
+	\cleardoublepage
+	\phantomsection
+	\addcontentsline{toc}{chapter}{List of figures}
+	\listoffigures
+	
+	\cleardoublepage
+	\phantomsection
+	\addcontentsline{toc}{chapter}{List of tables}
+	\listoftables
+	
+	\cleardoublepage
+	\chapter*{List of abbreviations}
+	\markboth{List of abbreviations}{List of abbreviations}
+	\addcontentsline{toc}{chapter}{List of abbreviations}
+	
+	\noindent
+	\begin{tabularx}{\textwidth}{@{}l@{\hspace{1.4em}}X@{}}
+		\toprule
+		\textbf{AI}     & Artificial Intelligence \\
+		\textbf{API}    & Application Programming Interface \\
+		\textbf{AUC}    & Area Under the Curve \\
+		\textbf{CWRU}   & Case Western Reserve University \\
+		\textbf{EDA}    & Exploratory Data Analysis \\
+		\textbf{Edge AI}& Artificial Intelligence running on the end device \\
+		\textbf{GSEA}   & Electronics and Automation Systems Engineering \\
+		\textbf{JSON}   & JavaScript Object Notation \\
+		\textbf{KNN}    & K-Nearest Neighbours \\
+		\textbf{MLP}    & Multi-Layer Perceptron \\
+		\textbf{RMS}    & Root Mean Square \\
+		\textbf{ROC}    & Receiver Operating Characteristic \\
+		\textbf{SVM}    & Support Vector Machine \\
+		\textbf{TinyML} & Machine Learning on constrained embedded devices \\
+		\bottomrule
+	\end{tabularx}
+	
+	% =====================================================================
+	%  Main body
+	% =====================================================================
+	\cleardoublepage
+	\pagenumbering{arabic}
+	\setcounter{page}{1}
+	
+	\include{chapters/introduction_generale}
+	\include{chapters/ch1_context}
+	\include{chapters/ch2_data}
+	\include{chapters/ch3_ml}
+	\include{chapters/ch4_embedded}
+	\include{chapters/conclusion_generale}
+	
+	% =====================================================================
+	%  Bibliography
+	% =====================================================================
+	\cleardoublepage
+	\printbibliography[heading=bibintoc,title={References}]
+	
+\end{document}

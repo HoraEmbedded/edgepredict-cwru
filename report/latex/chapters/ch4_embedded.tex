@@ -1,0 +1,140 @@
+\chapter{Embedded implementation and supervision}
+\label{ch:embedded}
+
+This chapter describes how the selected model is deployed on the target device, how its predictions are exposed to a user, and how the system behaves under load. It covers the software architecture, the inference engine, the Flask supervision server, the interactive dashboard, the systemd deployment, and the runtime measurements collected on the Raspberry Pi 4.
+
+\section{Hardware platform}
+
+The target is a Raspberry Pi 4 Model B, equipped with a quad-core Cortex-A72 running at 1.8 GHz and 3.7 GiB of RAM. The operating system is Debian for ARM64, with Python 3.13. The board boots from an 8 GB USB drive used as the system disk, with no microSD card. No active cooling is installed.
+
+This configuration is intentionally minimal. It represents a low-cost industrial gateway, not a development workstation. Every measurement reported in this chapter is therefore a lower bound on what a more powerful embedded platform would deliver.
+
+\section{Software architecture}
+
+The application is organized into three concurrent modules that mirror the three functional blocks of the specification.
+
+Module A ingests the raw vibration signal, applies the overlapping windowing, and computes the four statistical features. Module B loads the tuned Random Forest and produces a class prediction with a confidence score. Module C exposes the predictions through a Flask web server and serves an interactive dashboard to any device on the local network.
+
+The three modules run inside a single Python process. Communication between them is handled through a thread-safe shared state object, which stores the latest prediction, a rolling history of the last 100 predictions, and the identifier of the currently selected source file.
+
+\section{Inference engine and threading}
+
+The inference engine runs in a background thread, separate from the Flask request handler. It loads the tuned model once at startup, along with its metadata. It then enters a loop: read a window from the source file, extract the four features, run the classifier, compute the confidence, measure the inference latency, and publish the result to the shared state. The loop then sleeps for 500 milliseconds before processing the next window.
+
+The 500 ms delay between windows is a deliberate design choice. It keeps the CPU usage low, avoids thermal throttling on a passively cooled board, and gives the dashboard enough time to refresh smoothly. A production system operating on a real sensor stream would remove this delay.
+
+The inference thread supports interactive scenario switching. When the user selects a different file from the dashboard, the Flask server writes the new file name to the shared state and sets a reload flag. At the next iteration, the inference thread detects the flag, reloads the signal, regenerates the windows, resets the window index, and resumes inference on the new file. The switch takes less than two seconds in practice.
+
+\section{Flask supervision server}
+
+The supervision server is built with Flask and listens on port 5000 on all interfaces, which makes it reachable from any device on the same local network. It exposes five routes.
+
+\texttt{/} serves the dashboard page.
+
+\texttt{/api/state} returns the latest prediction as a JSON object, with the class label, the four feature values, the confidence, the inference latency, the window index, and the source file name.
+
+\texttt{/api/history} returns the rolling history of the last 100 predictions, used by the dashboard charts.
+
+\texttt{/api/model} returns the model metadata: class names, test accuracy, and the best hyperparameters found during tuning.
+
+\texttt{/api/files} returns the list of available source files and the currently selected one.
+
+\texttt{/api/select} accepts a POST request with a file name and switches the inference thread to that file.
+
+The server runs without the Flask reloader, to avoid launching two inference threads. This is a common source of confusion in development and is worth signalling: the reloader spawns a second process, which would duplicate the inference loop and corrupt the shared state.
+
+\section{Interactive dashboard}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{dashboard_105_innerrace.png}
+	\caption{Dashboard in light mode, on the InnerRace scenario.}
+	\label{fig:dashboard_light}
+\end{figure}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{dashboard_105_innerrace.png}
+	\caption{Dashboard in dark mode, on the InnerRace scenario.}
+	\label{fig:dashboard_dark}
+\end{figure}
+
+\Cref{fig:dashboard_light,fig:dashboard_dark} show the dashboard in its two display modes. The layout is identical in both cases. Five indicator cards appear at the top: the predicted state, the confidence, the inference latency, the window index, and the source file. Below them, a scenario selector allows the user to switch between the 48 available files without restarting the service. Two charts occupy the middle of the page. A footer line displays the model metadata.
+
+The dashboard uses two colour schemes, selectable from a button in the top bar. The dark theme uses a dark blue background and light text, and is intended for control rooms and video demonstrations. The light theme uses a white background and dark text, and is intended for printed reports and workshop environments. The choice is persisted in the browser's local storage, so that a reload restores the last selected theme.
+
+\subsection{Predicted state card}
+
+The predicted state card shows the class label returned by the model for the current window. The text colour encodes the severity: green for the Normal class, red for the three fault classes. In \cref{fig:dashboard_light}, the label reads InnerRace in red, which indicates that the model is currently processing the file \texttt{105.mat} and classifying the window as an inner race fault.
+
+\subsection{Confidence card}
+
+The confidence card shows the probability assigned by the model to the predicted class, expressed as a percentage. On the CWRU dataset, the confidence is typically above 95\,\% for fault classes and above 99\,\% for the Normal class. A low confidence would indicate an ambiguous window, which is rare with four well-separated classes.
+
+\subsection{Latency card}
+
+The latency card shows the time taken by the feature extraction and the classification of a single window, measured with a monotonic high-resolution clock. On the target board, this latency is around 100 milliseconds per window. This figure is different from the batch inference latency reported in \cref{sec:latency} and the distinction is discussed there.
+
+\subsection{Class distribution chart}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.55\textwidth]{dashboard_scenario_selector.png}
+	\caption{Zoom on the scenario selector, showing the list of available source files.}
+	\label{fig:scenario_selector}
+\end{figure}
+
+The doughnut chart at the top right of the dashboard shows the distribution of predicted classes over the last 100 windows. The four segments correspond to the four classes. The colours match the convention used in the rest of the interface: green for Normal, red for InnerRace, orange for OuterRace, and blue for Ball. A healthy run produces a uniform green ring. A fault scenario produces a solid segment in the corresponding colour.
+
+\subsection{Feature timeline chart}
+
+The line chart at the bottom shows the evolution of the four features over the last 50 windows. The horizontal axis is the window index, and the vertical axis is the feature value. Each feature has its own colour: blue for RMS, orange for crest factor, red for kurtosis, and green for skewness. The chart makes the transition between scenarios visible: when the user switches from a healthy file to a fault file, the kurtosis curve rises sharply while RMS increases more gradually.
+
+\subsection{Scenario selector}
+
+\Cref{fig:scenario_selector} shows a zoom on the scenario selector. The drop-down menu lists the 48 source files stored on the board. Selecting a file and clicking Apply sends a POST request to \texttt{/api/select}. The server updates the shared state, and the inference thread reloads the signal at the next iteration. The user sees the new scenario reflected in the cards and charts within two seconds.
+
+This interactive selection turns the dashboard into a demonstration bench. It allows a visitor to compare the four classes without touching the code or restarting the service, which is a substantial improvement over a fixed demonstration.
+
+\section{Systemd deployment}
+
+The application runs as a systemd service named \texttt{edgepredictpi}. The service is enabled at boot, which means that the Raspberry Pi starts the inference engine and the web server automatically, without any manual intervention.
+
+The service unit declares a dependency on the network, runs under the default user account, sets the working directory to the source folder, and restarts the service on failure after five seconds. Restarting on failure ensures that a transient error, such as a file access issue, does not leave the system in a stopped state.
+
+The service can be inspected with \texttt{systemctl status edgepredictpi}. In the measurements reported below, the service was verified to be in the active (running) state after a full reboot, with no manual command issued.
+
+\section{Inference latency}
+\label{sec:latency}
+
+Two latency figures are reported in this project, and their difference matters.
+
+The first is the single-window latency shown on the dashboard. It measures the time taken to extract the features of one window and classify it, with a Python-level loop and a single-row prediction call. On the target board, this latency is around 100 milliseconds.
+
+The second is the batch inference latency, measured by processing all windows of a file in a single vectorized call. This mode exploits NumPy array operations and a single call to the model's prediction function on a two-dimensional matrix. The batch latency on the target board is 0.0133 milliseconds per sample, which is three orders of magnitude below the 10 millisecond target from the specification.
+
+The two figures measure different things. The single-window latency reflects the cost of one decision taken in isolation, which is what an operator sees on the dashboard. The batch latency reflects the amortized cost per sample in a throughput-oriented pipeline, which is what an industrial fleet operator would care about. Both are reported, and both are below the specification target.
+
+\section{Runtime footprint}
+
+The runtime footprint was measured with \texttt{htop} during steady-state inference on the target board.
+
+The CPU usage of the Python process oscillates between 4 and 9 percent. The system load average stabilizes at 0.75, 0.64, and 0.45 over one, five, and fifteen minutes, on a quad-core processor. This leaves most of the board's capacity available for other tasks.
+
+The memory used by the Python process is approximately 162 MB, out of 3.7 GiB total. The total memory used by the system is 239 MB, which includes the operating system and background services. The model itself is 7.7 MB after tuning, which is negligible compared to the memory footprint of the Python interpreter and the scientific libraries.
+
+These figures confirm that the deployment is not resource-constrained. The system could run on a considerably smaller board, and the memory budget would still be comfortable.
+
+\section{Thermal constraint and tuning location}
+
+A first attempt to run the hyperparameter search directly on the target board triggered thermal throttling. The processor temperature reached 84.7 degrees Celsius, and the throttle register returned the value 0xe0008, which indicates that the soft temperature limit had been activated. The firmware reduced the CPU frequency to protect the chip.
+
+The tuning was therefore moved to a development workstation. The full grid search, which requires 108 training runs, completed in 94 seconds on the workstation. The tuned model was then transferred to the target board for deployment.
+
+This decision reflects a standard MLOps separation between training and deployment. Training and hyperparameter search are compute-intensive and benefit from a workstation with active cooling. Inference is lightweight and belongs on the embedded target. The same separation is found in production machine learning systems, where models are trained in data centres and deployed at the edge.
+
+The thermal event is reported here for two reasons. First, it is an observable characteristic of the target platform, which has no active cooling. Second, it justifies a methodological choice that a reader might otherwise question. It is not a failure: it is a measurement that informed a decision.
+
+\section{Summary}
+
+The system runs as a systemd service on the Raspberry Pi 4, with a background inference thread and a Flask supervision server on port 5000. The dashboard provides an interactive scenario selector and two display modes. Batch inference latency is 0.0133 milliseconds per sample, three orders of magnitude below the specification target. CPU usage stays below 10 percent and memory usage below 200 MB. The hyperparameter search was performed on a development workstation, after the target board reached thermal throttling at 84.7 degrees Celsius, following a standard MLOps separation between training and deployment.

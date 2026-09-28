@@ -139,3 +139,21 @@ The technical report is available at report/report.md.
 Horacia Azonhoumon
 GSEA - Embedded Electronics and Automation
 ENSA Tanger
+
+
+## Report and demonstration
+
+- Technical report: [report/EdgePredict-CWRU-report.pdf](report/EdgePredict-CWRU-report.pdf)
+- Demonstration screenshots: [docs/demo/](docs/demo/)
+- Video demonstration: [link]
+
+## Repository structure
+
+    src/                  Python source files
+    templates/            Dashboard HTML
+    static/               Static assets
+    systemd/              Systemd service unit
+    docs/                 Documentation and demo
+    report/               LaTeX sources and final PDF
+    data/                 Not versioned (raw dataset and features)
+    models/               Not versioned (trained model)

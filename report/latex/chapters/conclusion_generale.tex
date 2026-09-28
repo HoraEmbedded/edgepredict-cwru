@@ -1,0 +1,30 @@
+\chapter*{General conclusion}
+\markboth{General conclusion}{General conclusion}
+\addcontentsline{toc}{chapter}{General conclusion}
+
+\noindent
+This report presented EdgePredict-CWRU, a complete predictive maintenance pipeline running entirely on a Raspberry Pi 4 without any Cloud dependency. The system ingests vibration signals from the CWRU Bearing Dataset, extracts four statistical features from overlapping windows, classifies the state of the bearing with a tuned Random Forest, and exposes the results through an interactive web dashboard served on the local network.
+
+The main result is that the full pipeline, from signal processing to user interface, runs on a low-cost embedded board with comfortable margins. The tuned model reaches 97.79\,\% accuracy on \num{10957} test windows. Batch inference latency is 0.0133 ms per sample, three orders of magnitude below the 10 ms target. CPU usage stays under 10\,\%, and memory usage stays under 200 MB. The system starts automatically at boot through a systemd service and has been verified to survive a full reboot without intervention.
+
+Six supervised algorithms were compared under a frozen protocol, with a held-out test set opened once. This methodology, rather than the score itself, is what makes the model selection defensible. Random Forest was selected on four criteria: highest test accuracy, lowest cross-validation variance, fast inference, and acceptable model size. Feature importance confirms that RMS and kurtosis carry most of the discriminative signal, which is consistent with the physics of bearing faults.
+
+Three limitations bound the scope of the work.
+
+First, the evaluation uses a single reference dataset recorded on a controlled test rig. Real industrial signals contain noise, load variability, and long-term drift that the CWRU dataset does not reproduce. A model trained on CWRU is not directly deployable on a production line.
+
+Second, the sensor stream is simulated from stored files. No physical accelerometer is connected to the board, and no real-time acquisition pipeline was built. The embedded software stack is exercised, but the hardware integration layer is not.
+
+Third, the confusion matrix shows that most of the remaining errors involve the Ball and OuterRace classes, whose vibration signatures partially overlap at moderate defect severity. This is a physical limitation of the four time-domain features, not a modelling issue.
+
+Four directions for future work follow from these limitations.
+
+The most immediate is to enrich the feature set with frequency-domain indicators, such as the envelope spectrum or the characteristic fault frequencies. This would target the Ball versus OuterRace confusion directly.
+
+A second direction is to test the pipeline on a second dataset recorded under different operating conditions, in order to estimate how much the accuracy drops when the distribution shifts.
+
+A third direction is to connect a real accelerometer and rebuild the ingestion module around a physical acquisition loop, replacing the simulated stream with a live one.
+
+A fourth direction is to convert the trained model to an optimized inference format, such as ONNX Runtime or a quantized representation, in order to reduce the model size and the memory footprint further, and to prepare the system for deployment on even smaller boards.
+
+The project demonstrates that a complete Edge AI pipeline for predictive maintenance is feasible on a single-board computer, with no Cloud dependency and with measurable margins on latency and memory. The methodology, the code, and the measurements are released openly so that the work can be reproduced and extended.

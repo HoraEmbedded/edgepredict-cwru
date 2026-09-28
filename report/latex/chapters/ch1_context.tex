@@ -1,0 +1,54 @@
+\chapter{Context and state of the art}
+\label{ch:context}
+
+This chapter sets the context of the project and reviews the state of the art in the fields it builds upon. It covers predictive maintenance, bearing condition monitoring, Machine Learning for fault diagnosis, Edge AI, and the CWRU benchmark, then positions the project within this landscape.
+
+\section{Predictive maintenance}
+
+Industrial maintenance follows three regimes. Corrective maintenance intervenes after a failure, and therefore bears the full cost of the unplanned downtime. Preventive maintenance replaces components on a fixed schedule, trading the risk of failure against the replacement of still-healthy parts. Predictive maintenance triggers intervention based on the observed condition of the machine, using the measurements already produced by its sensors \cite{carvalho2019predictive}.
+
+The shift towards predictive maintenance has been driven by the spread of embedded instrumentation. Modern industrial equipment continuously records pressures, temperatures, vibrations, and usage counters. The volume and variety of these signals make physical modelling impractical for every component, and this is where Machine Learning has become dominant \cite{theissler2021predictive}.
+
+Rolling element bearings are a primary target for predictive maintenance. They are present in almost every rotating machine, they are among the first components to degrade, and their failure can damage surrounding parts. Vibration analysis is the most common technique for monitoring their condition, because a localized defect produces a periodic impact that propagates through the structure as a measurable signal.
+
+\section{Condition monitoring of rolling bearings}
+
+A localized defect on a bearing surface generates a short mechanical impulse each time a rolling element passes over it. These impulses excite the natural frequencies of the bearing and its housing, producing a vibration signal whose repetition rate depends on the defect location. This characteristic frequency, called the fault frequency, is different for the inner race, the outer race, and the rolling elements.
+
+Classical condition monitoring relies on time-domain indicators. The Root Mean Square (RMS) quantifies the overall energy of the signal and rises as the bearing degrades. The crest factor, the ratio between the peak value and the RMS, is sensitive to impulsive events. Kurtosis, the fourth statistical moment, measures the impulsiveness of the signal and increases sharply when localized defects appear. Skewness, the third moment, captures the asymmetry of the amplitude distribution.
+
+These four indicators are the foundation of most industrial diagnostic systems, because they are cheap to compute, require no frequency-domain transform, and remain interpretable by a maintenance technician. Their main limitation is that they respond to overall degradation rather than to a specific fault location, which motivates the use of Machine Learning to combine them.
+
+\section{Machine Learning for fault diagnosis}
+
+Data-driven fault diagnosis treats the problem as a supervised classification task. A labelled dataset of vibration signals is used to train a model that maps feature vectors to fault classes. The model is then applied to new signals to predict the state of the bearing.
+
+Two families of approaches are found in the literature. The first relies on hand-crafted features, such as the four indicators above, followed by a classical classifier: decision tree, Random Forest, Support Vector Machine, or gradient boosting. The second uses deep learning directly on the raw signal or on a time-frequency representation, typically a convolutional neural network \cite{zhang2020bearing}.
+
+The choice between the two depends on the constraints of the deployment target. Deep models reach high accuracy when large labelled datasets and sufficient compute are available. On tabular data of moderate size, tree-based ensembles remain competitive and often superior, for three reasons identified by Grinsztajn, Oyallon and Varoquaux \cite{grinsztajn2022tree}: neural networks are sensitive to uninformative features, react poorly to rotations of the input space, and struggle with irregular target functions that trees approximate naturally. A similar conclusion is reached by Shwartz-Ziv and Armon \cite{shwartz2022tabular} and by Borisov et al. \cite{borisov2024deep}.
+
+On an embedded target with no GPU, memory measured in gigabytes, and a hard latency constraint, a compact model with hand-crafted features is therefore a reasonable engineering choice. Random Forests \cite{breiman2001random} combine high accuracy on tabular data, negligible inference time per sample, and an interpretable structure through feature importance.
+
+\section{Edge AI and TinyML}
+
+Edge AI refers to running Machine Learning inference on the device that produces or consumes the data, rather than on a remote server. The motivations are threefold: latency, bandwidth, and confidentiality. A local decision avoids the round trip to the Cloud, removes the need to transmit high-frequency signals continuously, and keeps sensitive data on the factory floor.
+
+The specific case of Machine Learning on very constrained devices is called TinyML \cite{dutta2021tinyml}. The constraints are hard: limited memory, limited compute, no accelerator, and often a battery budget. The design choices that follow are model compression, feature engineering, and a preference for algorithms whose inference cost scales with the number of parameters rather than with the size of the training data \cite{banbury2021mlperf}.
+
+Edge AI has been applied to industrial monitoring with increasing frequency over the past decade. The typical architecture combines a local feature extraction stage, a compact classifier, and a lightweight communication layer that exposes the results to a supervision station. This is the architecture adopted in the present project.
+
+\section{The CWRU dataset as a benchmark}
+
+The Case Western Reserve University (CWRU) Bearing Dataset is the reference benchmark for bearing fault diagnosis \cite{smith2015rolling}. It was recorded on a test rig with a two-horsepower motor, a torque transducer, and accelerometers mounted at the drive end and at the fan end of the bearing housing.
+
+The dataset contains four classes of signals: healthy bearings, inner race faults, outer race faults, and ball faults. Each fault type is provided at several severity levels, corresponding to defect diameters of 0.007, 0.014, 0.021, and 0.028 inches. The recordings span several motor loads and rotation speeds, sampled at 12 kHz and 48 kHz.
+
+Its popularity comes from three qualities. The classes are physically distinct and well labelled, which makes it a clean benchmark. The fault frequencies are documented, which supports physically meaningful interpretation. And the dataset is publicly available, which enables direct comparison between published results. Its main limitation is the controlled test rig environment, far from the noise and load variability of a real installation.
+
+\section{Positioning of the project}
+
+The project sits at the intersection of three lines of work reviewed above. It uses the CWRU dataset as benchmark, applies hand-crafted time-domain features and tree-based classifiers as recommended for tabular data of moderate size, and targets an embedded platform without accelerator, following the TinyML approach.
+
+Three aspects distinguish it from the majority of published work. First, the entire pipeline, from signal ingestion to web supervision, runs on a single-board computer with no Cloud component, and this constraint is not relaxed at any stage. Second, six supervised algorithms are compared under a frozen protocol, with a held-out test set opened once, which makes the model selection defensible rather than anecdotal. Third, the runtime behaviour of the deployed system is measured on the target device itself: inference latency, memory footprint, thermal behaviour, and the effect of concurrent load.
+
+The next chapter presents the dataset and the signal processing pipeline that produces the input to the models.

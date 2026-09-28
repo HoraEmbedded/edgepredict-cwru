@@ -1,0 +1,100 @@
+\chapter{Data and signal processing}
+\label{ch:data}
+
+This chapter presents the data used in the project and the transformations it undergoes before reaching the models. It describes the CWRU dataset, the overlapping windowing strategy, the four statistical features, and the exploratory analysis that justifies the modelling choices of the next chapter.
+
+\section{The CWRU dataset}
+
+The project uses the 12 kHz drive-end subset of the CWRU Bearing Dataset \cite{smith2015rolling}. This subset is the most widely used in the literature, which allows direct comparison with published results. It contains four classes of vibration signals: healthy bearings, inner race faults, outer race faults, and ball faults. Each fault class is provided at three or four severity levels, corresponding to defect diameters of 0.007, 0.014, 0.021, and 0.028 inches.
+
+Forty-eight files were successfully downloaded from the CWRU repository. Four files, corresponding to outer race faults with 0.028 inch severity, returned HTTP 404 and were not available from public mirrors at the time of the work. The four classes remain represented: 4 files for the healthy class, 16 for inner race, 16 for ball, and 12 for outer race.
+
+Each file contains a one-dimensional vibration signal sampled at 12 kHz, stored in MATLAB format. Signal lengths vary between approximately 120\,000 and 250\,000 points. The signal is loaded through SciPy and stored as a NumPy array.
+
+\section{Overlapping windowing}
+
+Raw vibration signals are continuous and cannot be fed directly to a classifier. They are split into fixed-size windows, each of which becomes one observation. The window size was set to 1024 points, a standard choice in the CWRU literature that covers about 85 milliseconds of signal at 12 kHz.
+
+A non-overlapping split would produce roughly 140 windows per file, and about 6\,700 windows in total. This is too small to train and compare six algorithms reliably. The windowing strategy therefore uses an overlap of 87.5\,\%, corresponding to a step of 128 points between consecutive windows. This is a common practice in signal processing, as it increases the number of observations without altering the underlying physics: consecutive windows describe nearby but distinct time intervals of the same signal.
+
+The overlapping windowing produces \num{54781} windows across the 48 files. This is the dataset used throughout the rest of the report.
+
+\section{Statistical features}
+
+Four time-domain indicators are computed on each window. They are the foundation of classical bearing condition monitoring.
+
+The Root Mean Square (RMS) is the square root of the mean of the squared signal. It quantifies the overall energy of the vibration and rises as the bearing degrades. The crest factor is the ratio between the peak absolute value and the RMS. It is sensitive to short impulsive events, and therefore to the presence of a localized defect. Kurtosis is the fourth statistical moment, normalized by the square of the second moment. It measures the impulsiveness of the signal and increases sharply when a defect generates periodic impacts. Skewness is the third moment, normalized by the second moment to the power of three-halves. It captures the asymmetry of the amplitude distribution.
+
+These four features are computed on every window with a vectorized NumPy implementation. Vectorization matters here: a naive Python loop over 54\,781 windows would be prohibitively slow on the target board. The vectorized version processes all windows of a file in a single batch of array operations.
+
+The output is a table with five columns: the four features and a class label. This table is the input to the Machine Learning pipeline of the next chapter.
+
+\section{Class distribution}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.72\textwidth]{class_distribution.png}
+	\caption{Number of windows per class in the feature dataset.}
+	\label{fig:class_distribution}
+\end{figure}
+
+\Cref{fig:class_distribution} shows the number of windows per class. The x-axis lists the four classes. The y-axis gives the number of windows, in absolute count. Each bar corresponds to one class and its height is the number of windows belonging to that class.
+
+Inner race and ball faults each contribute about \num{15000} windows, normal operation contributes \num{13231}, and outer race faults contribute \num{11356}. The imbalance ratio between the largest and the smallest class is about 1.33, which is far below the ratios usually considered problematic in classification, typically above 10. No class is under-represented, and no resampling technique is therefore required. The frozen protocol described in \cref{ch:ml} uses a stratified split to preserve this ratio between training and test sets.
+
+\section{Feature distributions by class}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{feature_boxplots.png}
+	\caption{Distribution of each feature, split by class. Each panel shows one feature.}
+	\label{fig:feature_boxplots}
+\end{figure}
+
+\Cref{fig:feature_boxplots} shows the distribution of each feature, split by class, in four panels. In every panel, the x-axis lists the four classes and the y-axis gives the feature value. The box represents the interquartile range, the horizontal line inside the box is the median, the whiskers extend to 1.5 times the interquartile range, and the points beyond the whiskers are outliers.
+
+The RMS panel shows a clear separation between the healthy class and the three fault classes. Healthy windows have an RMS concentrated between 0.06 and 0.09, while the fault classes spread over a much wider range, up to 2.8. The overlap between the three fault classes is significant, which means that RMS alone cannot distinguish between inner race, outer race, and ball faults.
+
+The crest factor panel is less discriminative at the median level, but shows a long upper tail for the fault classes. This is the expected signature of impulsive events.
+
+The kurtosis panel is the most informative visually. Healthy windows cluster around a value of 3, which is the value expected for a Gaussian distribution. The fault classes show a median between 4 and 7, with a tail extending beyond 50. This confirms that the fault signals are impulsive, and that kurtosis captures this property.
+
+The skewness panel shows distributions centred near zero for all four classes, with a slight asymmetry for ball and outer race faults. Skewness is the least discriminative of the four features on this dataset, which is consistent with the feature importance reported in \cref{ch:ml}.
+
+\section{Feature correlations}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.62\textwidth]{feature_correlation.png}
+	\caption{Pearson correlation matrix between the four features, computed on the full dataset.}
+	\label{fig:feature_correlation}
+\end{figure}
+
+\Cref{fig:feature_correlation} shows the Pearson correlation matrix between the four features. Both axes list the four features in the same order. Each cell gives the correlation coefficient between the two corresponding features, on a scale from \(-1\) in blue to \(+1\) in red. The diagonal is always 1, since each feature is perfectly correlated with itself.
+
+The strongest correlation is observed between RMS and crest factor, at about \(0.65\). This is expected: both features depend on the amplitude of the signal, and an increase in energy is generally accompanied by an increase in peak amplitude. The correlation is however not high enough to make one of them redundant.
+
+The other pairs show low correlations, below \(0.3\) in absolute value. Kurtosis and skewness are nearly uncorrelated with RMS and with each other, which means that they bring complementary information. This justifies keeping all four features rather than reducing the input to a single indicator.
+
+\section{Pairwise feature relationships}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=\textwidth]{feature_pairplot.png}
+	\caption{Pairwise scatter plots of the four features, coloured by class.}
+	\label{fig:feature_pairplot}
+\end{figure}
+
+\Cref{fig:feature_pairplot} shows the pairwise scatter plots of the four features. The figure is a \(4 \times 4\) grid. The diagonal panels show the marginal distribution of each feature. Off-diagonal panels show the joint distribution of two features, with the horizontal axis corresponding to the feature listed in the row and the vertical axis to the feature listed in the column. Each point is one window. The colour encodes the class: green for normal, red for inner race, orange for outer race, and blue for ball.
+
+The plot was generated on a random subsample of \num{5000} windows, for readability. The full dataset would produce over \num{54000} points, which is too dense to interpret visually.
+
+The most informative panels are those involving RMS and kurtosis. In the joint plot of these two features, the healthy class forms a tight cluster near the origin, while the three fault classes spread towards higher values of both features. The overlap between fault classes remains substantial in this two-dimensional projection, which confirms that no pair of features separates the four classes on its own.
+
+The scatter plots also reveal the presence of outliers in the ball and outer race classes, with kurtosis values above 40 and RMS above 2. These points correspond to windows where a localized impact occurred at maximum amplitude. They are physically valid and are kept in the dataset.
+
+The conclusion drawn from this figure is that the four features together carry enough discriminative information to justify a multivariate classifier, but that no simple threshold rule would be sufficient. This motivates the comparison of several supervised learning algorithms in the next chapter.
+
+\section{Summary}
+
+The dataset consists of \num{54781} windows of 1024 points, extracted from 48 files of the CWRU 12 kHz drive-end subset with an overlap of 87.5\,\%. Four statistical features are computed on each window. The class distribution is close to uniform, the features are weakly correlated, and their joint distribution shows partial separability between the healthy class and the three fault classes, but substantial overlap between the fault classes. These observations set the stage for the Machine Learning pipeline described in the next chapter.

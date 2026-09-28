@@ -1,0 +1,16 @@
+\chapter*{General introduction}
+\markboth{General introduction}{General introduction}
+\addcontentsline{toc}{chapter}{General introduction}
+
+\noindent
+Rolling element bearings are among the most critical components in rotating machinery. Their failure is a leading cause of unexpected downtime, and the cost of a missed fault often exceeds the cost of the bearing itself by several orders of magnitude.
+
+Traditional predictive maintenance relies on Cloud computing. Vibration signals are transmitted to a remote server, where Machine Learning models process them. This architecture has three drawbacks: transmission latency, bandwidth cost, and data confidentiality. Edge Computing removes these drawbacks by moving the computation to the device itself. Combined with TinyML, it allows real-time fault diagnosis on low-cost embedded hardware.
+
+This report presents EdgePredict-CWRU, a complete predictive maintenance pipeline running entirely on a Raspberry Pi 4, without any Cloud dependency. The system classifies bearing states into four classes: healthy, inner race fault, outer race fault, and ball fault.
+
+The project has five objectives. Build a signal processing pipeline that extracts statistical features from overlapping windows of the CWRU Bearing Dataset. Compare several supervised learning algorithms under a frozen protocol, and select the best compromise between accuracy, latency, and model size. Deploy the selected model on the target board and measure its runtime behaviour. Expose the predictions through a web dashboard with interactive scenario selection. Automate startup through a systemd service.
+
+The scope is deliberately narrow. The system runs on a single Raspberry Pi 4, without external sensors: the sensor stream is simulated from a stored dataset. All computation is local, including training and tuning. The evaluation uses the CWRU Bearing Dataset, the reference benchmark for bearing fault diagnosis. Real sensor integration, long-term drift, and fleet deployment are left as future work.
+
+The report follows the order of the work. Chapter~\ref{ch:context} reviews the state of the art in predictive maintenance, Edge AI, and bearing fault diagnosis. Chapter~\ref{ch:data} describes the dataset and the signal processing pipeline. Chapter~\ref{ch:ml} presents the Machine Learning methodology, the comparison of six algorithms, and the final evaluation. Chapter~\ref{ch:embedded} covers the embedded implementation, the Flask dashboard, the systemd deployment, and the measurements on the target. A general conclusion summarizes the results and outlines future work.

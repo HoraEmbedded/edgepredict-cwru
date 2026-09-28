@@ -1,0 +1,133 @@
+\chapter{Machine Learning pipeline}
+\label{ch:ml}
+
+This chapter presents the Machine Learning pipeline applied to the feature dataset built in the previous chapter. It describes the frozen evaluation protocol, the comparison of six supervised algorithms, the hyperparameter tuning of the selected model, and the final evaluation on a held-out test set.
+
+\section{Frozen evaluation protocol}
+
+The protocol was written and frozen before any model was trained, so that no decision could be adjusted after seeing the results. It defines four rules.
+
+First, the dataset is split into 80\,\% training and 20\,\% test, using a stratified split with a fixed random seed of 42. Stratification preserves the class proportions in both subsets.
+
+Second, model comparison is performed by 5-fold stratified cross-validation on the training set only. Each fold serves once as validation while the four others serve as training. The mean and standard deviation of the accuracy across the five folds are reported.
+
+Third, the test set is opened once, at the very end, on the frozen model, including its hyperparameters. No decision is made after this opening.
+
+Fourth, the same protocol is applied to all six algorithms, with default hyperparameters for the comparison step and no per-model adjustment. Hyperparameter tuning is performed only on the selected model, in a separate step described in \cref{sec:tuning}.
+
+\section{Model comparison}
+\label{sec:comparison}
+
+Six algorithms from three families were compared. Two tree ensembles: Decision Tree and Random Forest \cite{breiman2001random}. Two distance-based or kernel-based methods: K-Nearest Neighbours with \(k = 5\), and a Support Vector Machine with a radial basis function kernel. One gradient boosting classifier. One neural network: a Multi-Layer Perceptron with two hidden layers of 64 and 32 units.
+
+The three non-tree models (SVM, KNN, MLP) require feature scaling and therefore receive standardized inputs. Tree-based models are trained on the raw features.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Comparison of six supervised algorithms under the frozen protocol.}
+	\label{tab:model_comparison}
+	\small
+	\begin{tabular}{lcccc}
+		\toprule
+		Model & CV accuracy & Test accuracy & Inference (ms) & Size (KB) \\
+		\midrule
+		Random Forest     & \(0.9807 \pm 0.0014\) & 0.9792 & 0.0133 & 15456.4 \\
+		Gradient Boosting & \(0.9783 \pm 0.0016\) & 0.9760 & 0.0113 & 513.4   \\
+		MLP (64, 32)      & \(0.9780 \pm 0.0014\) & 0.9759 & 0.0033 & 91.2    \\
+		Decision Tree     & \(0.9721 \pm 0.0012\) & 0.9699 & 0.0003 & 171.6   \\
+		KNN (\(k = 5\))   & \(0.9608 \pm 0.0012\) & 0.9617 & 0.0111 & 3617.4  \\
+		SVM (RBF)         & \(0.9512 \pm 0.0034\) & 0.9586 & 1.0810 & 829.0   \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\Cref{tab:model_comparison} reports the results. The first column lists the six algorithms. The second gives the mean accuracy across the five cross-validation folds, with the standard deviation. The third gives the accuracy on the test set, opened once at the end. The fourth gives the inference time per sample, measured in milliseconds on the target device. The fifth gives the size of the serialized model in kilobytes.
+
+All six algorithms exceed 95\,\% accuracy on the test set, which confirms that the four features carry strong discriminative information. The ranking is however not uniform. Random Forest achieves the best test accuracy at 0.9792, followed by Gradient Boosting at 0.9760 and the MLP at 0.9759. The Decision Tree is fourth at 0.9699, KNN fifth at 0.9617, and SVM last at 0.9586.
+
+The standard deviation across cross-validation folds is a second criterion. Random Forest and MLP show the lowest variance, around 0.0014, which indicates stable performance across data splits. SVM shows the highest variance, 0.0034, suggesting sensitivity to the composition of the training set.
+
+The inference time per sample is the third criterion, and it is decisive for embedded deployment. The Decision Tree is the fastest at 0.0003 ms, followed by the MLP at 0.0033 ms. Random Forest, Gradient Boosting and KNN cluster around 0.011 to 0.013 ms. The SVM is two orders of magnitude slower at 1.0810 ms per sample, which is incompatible with a real-time constraint on a constrained target.
+
+The model size is the fourth criterion. The MLP is the most compact at 91 KB, followed by the Decision Tree at 172 KB and Gradient Boosting at 513 KB. KNN stores the training set and reaches 3.6 MB. Random Forest is the largest at 15.5 MB, because it serializes 100 trees. This remains acceptable on a device with several gigabytes of RAM.
+
+\section{Selected model}
+
+Random Forest is selected for the final deployment on four arguments.
+
+It reaches the highest accuracy on the test set, 0.9792, and the highest mean accuracy in cross-validation, 0.9807.
+
+It shows the lowest variance across cross-validation folds, which makes its performance predictable.
+
+Its inference time of 0.0133 ms per sample is far below the 10 ms target from the specification, with a margin of three orders of magnitude.
+
+Its serialized size of 15.5 MB is large compared to the other models but remains within the memory budget of the target board.
+
+The SVM is rejected despite competitive accuracy, because its inference time is 80 times higher than Random Forest. The KNN is rejected for its large model size and lower accuracy. The MLP is rejected because its training time is the longest of the six models, for an accuracy slightly below Random Forest. The Decision Tree is rejected because its single-tree structure offers less robustness than an ensemble. Gradient Boosting is a close second, but its training time is ten times that of Random Forest for a lower accuracy.
+
+\section{Hyperparameter tuning}
+\label{sec:tuning}
+
+Random Forest is tuned with GridSearchCV over a grid of 36 combinations of four hyperparameters: the number of trees, the maximum depth, the minimum number of samples required to split a node, and the minimum number of samples required at a leaf.
+
+The tuning uses 3-fold stratified cross-validation on the training set, with accuracy as the scoring metric. The full grid search runs 108 training jobs. It was performed on a development workstation rather than on the target board, for reasons discussed in \cref{ch:embedded}.
+
+The best combination is 50 trees, maximum depth 20, minimum samples split 2, and minimum samples leaf 1. The best cross-validation accuracy is 0.9803, with a standard deviation of 0.0002 across the three folds.
+
+The default Random Forest, with 100 trees and unlimited depth, reaches 0.9807 in cross-validation. The gap between the tuned model and the default model is 0.0004, which is within the noise of the cross-validation estimate. Hyperparameter tuning therefore does not improve accuracy on this dataset. It does however halve the number of trees, from 100 to 50, and therefore halves the serialized model size. This is the actual gain of the tuning step for the embedded deployment.
+
+\section{Final evaluation}
+\label{sec:final_eval}
+
+The tuned model is evaluated on the test set, which was kept closed until this point. The test set contains \num{10957} windows, stratified according to the class distribution of the full dataset.
+
+The final test accuracy is \num{0.9779}. This is 0.13 percentage points below the accuracy of the default Random Forest, which is a difference of the same order as the cross-validation noise. The tuned model is therefore equivalent in accuracy to the default model, but twice as compact.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.62\textwidth]{confusion_matrix.png}
+	\caption{Confusion matrix of the tuned Random Forest on the test set.}
+	\label{fig:confusion_matrix}
+\end{figure}
+
+\Cref{fig:confusion_matrix} shows the confusion matrix of the tuned model on the test set. The vertical axis lists the true class of each window, and the horizontal axis lists the predicted class. Each cell gives the number of windows falling into the corresponding combination of true and predicted class. The diagonal cells in dark blue are correct predictions, and the off-diagonal cells are errors. The color intensity is proportional to the number of windows in each cell.
+
+Three observations follow from the matrix. First, the Normal class is almost perfectly separated: only one window out of \num{2647} was misclassified, as Ball. Second, the InnerRace class is also well separated, with 2993 correct predictions out of 3020, and a small number of confusions with Ball and OuterRace. Third, the largest source of error is the confusion between Ball and OuterRace: 79 Ball windows were predicted as OuterRace, and 98 OuterRace windows were predicted as Ball. This is physically plausible, because the vibration signature of a ball defect and that of an outer race defect overlap when the defect severity is moderate.
+
+The macro-averaged F1-score is 0.98, and the weighted-average F1-score is also 0.98, which confirms that no class is sacrificed to improve another.
+
+\section{Feature importance}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.68\textwidth]{feature_importance.png}
+	\caption{Feature importance of the tuned Random Forest.}
+	\label{fig:feature_importance}
+\end{figure}
+
+\Cref{fig:feature_importance} shows the feature importance of the tuned Random Forest. The horizontal axis lists the four features, and the vertical axis gives the normalized importance score returned by the model, on a scale from 0 to 1. The bars are sorted by decreasing importance.
+
+RMS dominates with a score of 0.6512, which is consistent with the physics of bearing faults: a defect increases the overall energy of the vibration signal, and RMS is the direct measure of that energy. Kurtosis comes second at 0.1843, capturing the impulsive nature of the defects. Skewness is third at 0.0951, contributing a smaller but non-negligible signal. Crest factor is last at 0.0694.
+
+This hierarchy matches the observations from the exploratory analysis in \cref{ch:data}. RMS separates the healthy class from the faults, kurtosis distinguishes impulsive faults, and crest factor is partly redundant with RMS on this dataset because both depend on the amplitude. The model relies on all four features, but the decision is mostly driven by RMS and kurtosis.
+
+\section{ROC analysis}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.72\textwidth]{roc_curves.png}
+	\caption{Receiver Operating Characteristic curves for the tuned model, one per class in a one-vs-rest setup.}
+	\label{fig:roc_curves}
+\end{figure}
+
+\Cref{fig:roc_curves} shows the Receiver Operating Characteristic (ROC) curves for the tuned model, using a one-vs-rest setup for the four classes. The horizontal axis is the false positive rate, ranging from 0 to 1. The vertical axis is the true positive rate, also from 0 to 1. The dashed black line is the diagonal, which corresponds to a random classifier. Each coloured curve corresponds to one class treated as positive, with the three other classes grouped as negative. The area under each curve (AUC) is reported in the legend.
+
+The Normal class reaches an AUC of 1.000, which confirms a near-perfect separation. The InnerRace class reaches 0.998, the Ball class 0.994, and the OuterRace class 0.991. All four curves rise steeply towards the top-left corner of the plot, which is the signature of a strong classifier.
+
+The AUC values confirm what the confusion matrix already showed: the errors are concentrated between the two fault classes that are physically closest, Ball and OuterRace, and not between the healthy class and any fault class.
+
+\section{Summary}
+
+Six algorithms were compared under a frozen protocol. All of them exceed 95\,\% accuracy, which validates the feature engineering of the previous chapter. Random Forest is selected for its combination of high accuracy, low variance, fast inference, and acceptable model size. Hyperparameter tuning does not improve accuracy on this dataset, but halves the model size. The final model reaches 0.9779 accuracy on \num{10957} test windows, with the strongest errors concentrated between the Ball and OuterRace classes. Feature importance confirms that RMS and kurtosis carry most of the discriminative information.
+
+The next chapter describes how this model is deployed on the target device, and measures its runtime behaviour.
